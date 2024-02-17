@@ -41,11 +41,22 @@ M_sql_error_t pgsql_resolve_error(const char *sqlstate, M_int32 errorcode)
 		{ "25P02", M_SQL_ERROR_QUERY_DEADLOCK   }, /*!< current transaction is aborted, commands ignored until end of transaction block */
 		{ "53",    M_SQL_ERROR_CONN_LOST        }, /*!< Other insufficient resources, disconnect */
 		{ "57P",   M_SQL_ERROR_CONN_LOST        }, /*!< ADMIN shutdown or similar */
+		{ "58000", M_SQL_ERROR_CONN_LOST        }, /*!< System error -- treat as disconnect */
+		{ "58030", M_SQL_ERROR_CONN_LOST        }, /*!< IO Error -- treat as disconnect */
 		{ NULL, M_SQL_ERROR_UNSET }
 	};
 	size_t i;
 
 	(void)errorcode;
+
+	/* PostgreSQL won't return an error state if it is not connected to the
+	 * server, instead it returns NULL.
+	 * According to https://www.postgresql.org/docs/current/errcodes-appendix.html
+	 * I'd think it should return a "58" or "XX" series code, but it does not.
+	 */
+	if (sqlstate == NULL) {
+		return M_SQL_ERROR_CONN_LOST;
+	}
 
 	for (i=0; statemap[i].state_prefix != NULL; i++) {
 		size_t prefix_len = M_str_len(statemap[i].state_prefix);
